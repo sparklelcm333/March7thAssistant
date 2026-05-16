@@ -397,35 +397,39 @@ class NativeUpdaterWindow:
                 self._log("info", f"执行最终化模式，等待PID={self.options.wait_pid}")
                 engine.finalize_update(wait_pid=self.options.wait_pid)
             else:
-                # 未预设 URL 时，通过统一的版本检测获取更新信息
-                if not engine.download_url:
-                    self._log("debug", "未预设URL，执行版本检测")
-                    try:
-                        from module.config import cfg
-                        source = getattr(cfg, "update_source", "GitHub")
-                        cdk = getattr(cfg, "mirrorchyan_cdk", "")
-                        prerelease = bool(getattr(cfg, "update_prerelease_enable", False))
-                        full = bool(getattr(cfg, "update_full_enable", True))
-                    except Exception:
-                        source, cdk, prerelease, full = "GitHub", "", False, True
+                # 自行检测更新，获取更新信息后再执行更新流程
+                try:
+                    from module.config import cfg
+                    prerelease = bool(getattr(cfg, "update_prerelease_enable", False))
+                except Exception:
+                    prerelease = False
 
-                    try:
-                        info = check_for_update(source, cdk, prerelease, full)
-                    except Exception as e:
-                        self._log("warning", f"版本检测失败: {e}")
-                        info = None
+                try:
+                    info = check_for_update(prerelease)
+                except Exception as e:
+                    self._log("warning", f"版本检测失败: {e}")
+                    info = None
 
-                    if info is None:
-                        self._log("info", "当前已是最新版本")
-                        self._set_result("no-update", tr("当前已是最新版本"))
-                        return
-
-                    engine.set_update_info(info)
-                    self._log("info", f"发现新版本: {info.version} ({info.source})")
-
-                if not engine.run_full_update(wait_pid=self.options.wait_pid):
+                if info is None:
+                    self._log("info", "当前已是最新版本")
                     self._set_result("no-update", tr("当前已是最新版本"))
                     return
+
+                engine.set_update_info(info)
+                self._log("info", f"发现新版本: {info.version}")
+
+                # 如果有补丁包，优先尝试增量更新
+                if info.patch_url:
+                    if not engine.try_incremental_update(wait_pid=self.options.wait_pid):
+                        self._log("info", "增量更新失败，回退到完整更新")
+                        engine.set_update_info(info, is_patch=False)
+                        if not engine.run_full_update(wait_pid=self.options.wait_pid):
+                            self._set_result("no-update", tr("当前已是最新版本"))
+                            return
+                else:
+                    if not engine.run_full_update(wait_pid=self.options.wait_pid):
+                        self._set_result("no-update", tr("当前已是最新版本"))
+                        return
 
             with self._lock:
                 self._running = False

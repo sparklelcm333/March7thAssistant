@@ -12,7 +12,6 @@ import json
 import re
 import sys
 from ..tools.check_update import checkUpdate
-from module.update.version_check import validate_mirrorchyan_cdk
 from module.localization import tr, get_character_names, instance_display_to_raw
 
 
@@ -97,123 +96,6 @@ class PushSettingCardStr(CustomPushSettingCard):
             cfg.set_value(self.configname, message_box.getText())
             self.configvalue = message_box.getText()
             self.contentLabel.setText(self._display_value(self.configvalue))
-
-
-class _CdkValidationThread(QThread):
-    validationFinished = Signal(bool, str)
-
-    def __init__(self, cdk, parent=None):
-        super().__init__(parent)
-        self.cdk = cdk
-
-    def run(self):
-        try:
-            cdk_expired_time = validate_mirrorchyan_cdk(self.cdk)
-            self.validationFinished.emit(True, str(cdk_expired_time))
-        except Exception as e:
-            self.validationFinished.emit(False, str(e))
-
-
-class PushSettingCardMirrorchyan(SettingCard):
-    def __init__(self, text, icon: Union[str, QIcon, FluentIconBase], title, update_callback, configname, parent=None):
-        self.configvalue = str(cfg.get_value(configname))
-        self.update_callback = update_callback
-        super().__init__(icon, title, "", parent)
-
-        self.title = title
-        self.configname = configname
-        self._validation_thread = None
-        self.destroyed.connect(self._cleanup_validation_thread)
-
-        self.button3 = QPushButton(tr("交流反馈"), self)
-        self.button3.setObjectName('primaryButton')
-        self.hBoxLayout.addWidget(self.button3, 0, Qt.AlignmentFlag.AlignRight)
-        self.hBoxLayout.addSpacing(10)
-        self.button3.clicked.connect(self.__onclicked3)
-
-        self.button2 = QPushButton(tr("获取 CDK"), self)
-        self.button2.setObjectName('primaryButton')
-        self.hBoxLayout.addWidget(self.button2, 0, Qt.AlignmentFlag.AlignRight)
-        self.hBoxLayout.addSpacing(10)
-        self.button2.clicked.connect(self.__onclicked2)
-
-        self.button = QPushButton(text, self)
-        self.hBoxLayout.addWidget(self.button, 0, Qt.AlignmentFlag.AlignRight)
-        self.hBoxLayout.addSpacing(16)
-        self.button.clicked.connect(self.__onclicked)
-
-    def __onclicked(self):
-        message_box = MessageBoxEdit(self.title, self.configvalue, self.window())
-        if message_box.exec():
-            cdk = message_box.getText()
-            cfg.set_value(self.configname, cdk)
-            self.contentLabel.setText(cdk)
-            self.configvalue = cdk
-            if cdk:
-                self._start_cdk_validation(cdk)
-
-    def _cleanup_validation_thread(self):
-        thread = self._validation_thread
-        if thread is not None:
-            if thread.isRunning():
-                thread.wait(11000)
-            thread.deleteLater()
-            self._validation_thread = None
-
-    def _start_cdk_validation(self, cdk):
-        existing = self._validation_thread
-        if existing is not None:
-            if existing.isRunning():
-                return
-            existing.deleteLater()
-            self._validation_thread = None
-
-        thread = _CdkValidationThread(cdk, self)
-        thread.validationFinished.connect(self._on_cdk_validated)
-        self._validation_thread = thread
-        thread.start()
-
-    def _on_cdk_validated(self, success, result):
-        if success:
-            cdk_expired_time = float(result)
-            expired_dt = datetime.datetime.fromtimestamp(cdk_expired_time, tz=datetime.timezone.utc)
-            now = datetime.datetime.now(datetime.timezone.utc)
-            remaining = expired_dt - now
-            days = remaining.days
-            if days > 0:
-                content = tr("剩余 {days} 天").format(days=days)
-            else:
-                content = tr("今天到期")
-            InfoBar.success(
-                title=tr("CDK 有效 (＾∀＾●)"),
-                content=content,
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=3000,
-                parent=self.window(),
-            )
-            source_card = self.update_callback.settingInterface.updateSourceCard
-            for i in range(source_card.comboBox.count()):
-                if source_card.comboBox.itemData(i) == "MirrorChyan":
-                    source_card.comboBox.setCurrentIndex(i)
-                    break
-        else:
-            InfoBar.warning(
-                title=tr("CDK 验证失败 (╥╯﹏╰╥)"),
-                content=result,
-                orient=Qt.Orientation.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=5000,
-                parent=self.window(),
-            )
-
-    def __onclicked2(self):
-        QDesktopServices.openUrl(QUrl("https://mirrorchyan.com/?source=m7a-app"))
-
-    def __onclicked3(self):
-        QDesktopServices.openUrl(QUrl("https://pd.qq.com/g/MirrorChyan"))
 
 
 class FetchLatestCodesWorker(QObject):

@@ -6,11 +6,10 @@ from qfluentwidgets import SettingCardGroup, PushSettingCard, ScrollArea, InfoBa
 from app.sub_interfaces.accounts_interface import accounts_interface
 from .common.style_sheet import StyleSheet
 from .components.pivot import SettingPivot
-from .card.comboboxsettingcard1 import ComboBoxSettingCard1
-from .card.comboboxsettingcard2 import ComboBoxSettingCard2, ComboBoxSettingCardUpdateSource, ComboBoxSettingCardLog, ComboBoxSettingCardLanguage
+from .card.comboboxsettingcard2 import ComboBoxSettingCard2, ComboBoxSettingCardLog, ComboBoxSettingCardLanguage
 from .card.switchsettingcard1 import SwitchSettingCard1, TimestampSwitchSettingCard, StartMarch7thAssistantSwitchSettingCard, SwitchSettingCardTeam, SwitchSettingCardImmersifier, SwitchSettingCardGardenofplenty, SwitchSettingCardEchoofwar, SwitchSettingCardHotkey, SwitchSettingCardCloudGameStatus
 from .card.rangesettingcard1 import RangeSettingCard1
-from .card.pushsettingcard1 import CustomPushSettingCard, DualPushSettingCard, PushSettingCardAction, PushSettingCardInstance, PushSettingCardInstanceChallengeCount, PushSettingCardNotifyTemplate, PushSettingCardMirrorchyan, PushSettingCardStr, PushSettingCardEval, PushSettingCardDate, PushSettingCardKey, PushSettingCardTeam, PushSettingCardFriends, PushSettingCardTeamWithSwap, PushSettingCardPowerPlan, InstanceTeamSettingCard
+from .card.pushsettingcard1 import CustomPushSettingCard, DualPushSettingCard, PushSettingCardAction, PushSettingCardInstance, PushSettingCardInstanceChallengeCount, PushSettingCardNotifyTemplate, PushSettingCardStr, PushSettingCardEval, PushSettingCardDate, PushSettingCardKey, PushSettingCardTeam, PushSettingCardFriends, PushSettingCardTeamWithSwap, PushSettingCardPowerPlan, InstanceTeamSettingCard
 from .card.timepickersettingcard1 import TimePickerSettingCard1
 from .card.expandable_switch_setting_card import ExpandableSwitchSettingCard, ExpandableTimestampSwitchSettingCard, ExpandableComboBoxSettingCardUpdateSource, ExpandableComboBoxSettingCard, ExpandableComboBoxSettingCardInstanceType, ExpandableSwitchSettingCardEchoofwar
 from .card.messagebox_custom import MessageBoxEdit
@@ -1487,14 +1486,12 @@ class SettingInterface(ScrollArea):
             tr('当前版本：') + " " + cfg.version
         )
         self.updateSourceCard = ExpandableComboBoxSettingCardUpdateSource(
-            "update_source",
+            "update_prerelease_enable",
             FIF.SPEED_HIGH,
             tr('更新源'),
             self.parent,
             "",
-            texts={tr('海外源'): 'GitHub', tr('Mirror 酱'): 'MirrorChyan'},
-            secondary_configname="update_prerelease_enable",
-            secondary_texts={tr('正式版'): False, tr('公测版'): True}
+            texts={tr('正式版'): False, tr('公测版'): True}
         )
         self.checkUpdateCard = SwitchSettingCard1(
             FIF.SYNC,
@@ -1502,25 +1499,12 @@ class SettingInterface(ScrollArea):
             "",
             "check_update"
         )
-        self.updateFullEnableCard = SwitchSettingCard1(
-            FIF.GLOBE,
-            tr('更新时下载完整包'),
-            tr("更新将包含依赖组件，建议保持开启。若关闭此选项，需自行手动更新依赖组件，可能会导致出现不可预期的错误。"),
-            "update_full_enable"
-        )
         self.updateDownloadProxyCard = PushSettingCardStr(
             tr('修改'),
             FIF.GLOBE,
             tr("下载代理"),
             "update_download_proxy",
             empty_content=tr("留空则使用系统代理；支持 http:// 和 socks5://")
-        )
-        self.mirrorchyanCdkCard = PushSettingCardMirrorchyan(
-            tr('修改'),
-            FIF.BOOK_SHELF,
-            tr("Mirror 酱 CDK"),
-            self.parent,
-            "mirrorchyan_cdk"
         )
         self.languageCard = ComboBoxSettingCardLanguage(
             "ui_language",
@@ -1765,10 +1749,8 @@ class SettingInterface(ScrollArea):
         self.AboutGroup.addSettingCard(self.updateSourceCard)
         self.updateSourceCard.addSettingCards([
             self.checkUpdateCard,
-            self.updateFullEnableCard,
             self.updateDownloadProxyCard
         ])
-        self.AboutGroup.addSettingCard(self.mirrorchyanCdkCard)
         self.AboutGroup.addSettingCard(self.languageCard)
 
         if sys.platform != 'win32':

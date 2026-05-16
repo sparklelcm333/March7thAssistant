@@ -7,6 +7,7 @@ import markdown
 from PySide6.QtCore import Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
 from qfluentwidgets import InfoBar, InfoBarPosition
+from PySide6.QtWidgets import QApplication
 
 from module.config import cfg
 from module.localization import tr
@@ -25,12 +26,6 @@ def _parse_release_body(body: str) -> str:
     """清理更新日志中的图片和推广文本。"""
     body = re.sub(r"!\[.*?\]\(.*?\)", "", body)
     body = re.sub(r"\r\n\r\n首次.*?无法.*?！", "", body, flags=re.DOTALL)
-    body = re.sub(
-        r"\r\n\r\n\[.*?Mirror酱.*?CDK.*?下载\]\(https?://.*?mirrorchyan\.com[^\)]*\)",
-        "",
-        body,
-        flags=re.IGNORECASE,
-    )
     return body
 
 
@@ -50,43 +45,17 @@ class UpdateThread(QThread):
         self.github_assert_url = ""
         self.github_assert_name = ""
         self.github_assert_sha256 = ""
-        self.mirrorchyan_assert_url = ""
-        self.mirrorchyan_assert_name = ""
-        self.mirrorchyan_assert_sha256 = ""
         self.html_url = ""
 
     def run(self):
         try:
-            source = cfg.update_source
-            cdk = cfg.mirrorchyan_cdk
+            if self.flag and not cfg.check_update:
+                return
+
             prerelease = cfg.update_prerelease_enable
-            full = cfg.update_full_enable or source == "MirrorChyan"
 
             # 始终先请求 GitHub，获取 html_url、更新日志等信息
-            github_info = check_for_update("GitHub", prerelease=prerelease, full=full)
-
-            # 如果用户配置了 Mirror酱，再请求 Mirror酱
-            if source == "MirrorChyan" and cdk:
-                try:
-                    mirror_info = check_for_update("MirrorChyan", cdk, prerelease, full=full, mirrorchyan_fallback=False)
-                except Exception as e:
-                    # Mirror酱 请求失败，直接报错，不回落到 GitHub
-                    self.error_msg = str(e)
-                    self.updateSignal.emit(UpdateStatus.FAILURE)
-                    return
-
-                if github_info is None:
-                    self.updateSignal.emit(UpdateStatus.SUCCESS)
-                    return
-
-                if mirror_info is None:
-                    # Mirror酱 认为已是最新版本，以 Mirror酱 为准
-                    self.updateSignal.emit(UpdateStatus.SUCCESS)
-                    return
-
-                self.mirrorchyan_assert_url = mirror_info.url
-                self.mirrorchyan_assert_name = mirror_info.file_name
-                self.mirrorchyan_assert_sha256 = mirror_info.sha256
+            github_info = check_for_update(prerelease=prerelease)
 
             if github_info is None:
                 self.updateSignal.emit(UpdateStatus.SUCCESS)
@@ -120,18 +89,6 @@ def checkUpdate(self, timeout: int = 5, flag: bool = False, silent: bool = False
 
     suppress_feedback = silent or (flag and not cfg.check_update)
 
-    def open_update_window(
-        assert_url: str,
-        assert_name: str,
-        assert_sha256: str,
-        message_box,
-    ):
-        from module.update.update_window import show_update_window
-
-        message_box.reject()
-        main_window = self.window() if hasattr(self, "window") else self
-        show_update_window(main_window, assert_url, assert_name, assert_sha256)
-
     def handle_update(status: UpdateStatus):
         main_window = self.window() if hasattr(self, "window") else self
         if main_window is None:
@@ -154,39 +111,22 @@ def checkUpdate(self, timeout: int = 5, flag: bool = False, silent: bool = False
             )
 
             def handle_github_click():
-                open_update_window(
-                    self.update_thread.github_assert_url,
-                    self.update_thread.github_assert_name,
-                    self.update_thread.github_assert_sha256,
-                    message_box,
-                )
-
-            def handle_mirrorchyan_click():
-                if not self.update_thread.mirrorchyan_assert_url:
-                    InfoBar.error(
-                        title=tr("尚未配置 Mirror酱 更新源 (╥╯﹏╰╥)"),
-                        content=tr('请在 "设置 → 关于 → 更新源" 中选择 Mirror酱 并填写有效 CDK'),
-                        orient=Qt.Orientation.Horizontal,
-                        isClosable=True,
-                        position=InfoBarPosition.TOP,
-                        duration=5000,
-                        parent=self,
-                    )
+                import os
+                from module.update.update_window import launch_updater
+                try:
+                    launch_updater(os.getpid())
+                except FileNotFoundError as e:
+                    InfoBar.error(title=tr("错误"), content=str(e), parent=self)
                     return
-                open_update_window(
-                    self.update_thread.mirrorchyan_assert_url,
-                    self.update_thread.mirrorchyan_assert_name,
-                    self.update_thread.mirrorchyan_assert_sha256,
-                    message_box
-                )
+
+                # 关闭更新日志弹窗
+                message_box.reject()
+                QApplication.quit()
 
             if hasattr(message_box, "githubUpdateCard") and message_box.githubUpdateCard:
                 message_box.githubUpdateCard.clicked.connect(handle_github_click)
-            if hasattr(message_box, "mirrorchyanUpdateCard") and message_box.mirrorchyanUpdateCard:
-                message_box.mirrorchyanUpdateCard.clicked.connect(handle_mirrorchyan_click)
 
-            if message_box.exec():
-                QDesktopServices.openUrl(QUrl(self.update_thread.html_url))
+            message_box.exec()
 
         elif status == UpdateStatus.SUCCESS:
             if hasattr(main_window, "setDetectedUpdateVersion"):

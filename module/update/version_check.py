@@ -1,7 +1,7 @@
 """统一的版本检测模块。
 
 所有更新入口（主循环通知、图形界面、命令行、独立更新程序）共用此模块，
-避免重复实现 GitHub / Mirror酱 的 API 调用和版本比较逻辑。
+避免重复实现 GitHub 的 API 调用和版本比较逻辑。
 """
 from __future__ import annotations
 
@@ -27,13 +27,15 @@ from module.update.download_proxy import (
 @dataclass
 class UpdateInfo:
     """标准化的更新信息，供所有消费方使用。"""
-    source: str          # "GitHub" | "MirrorChyan"
     url: str             # 下载链接
     file_name: str       # 文件名
     version: str         # 远程版本号（tag_name）
     sha256: str = ""      # 下载文件 SHA-256（如果更新源提供）
     release_note: str = ""   # 更新日志（Markdown）
     html_url: str = ""       # 发布页面 URL（仅 GitHub 来源有值）
+    patch_url: str = ""      # 差分包下载链接（如果有且更新源提供）
+    patch_sha256: str = ""   # 差分包 SHA-256（如果更新源提供）
+    patch_name: str = ""     # 差分包文件名（如果更新源提供）
 
 
 class VersionCheckError(RuntimeError):
@@ -43,13 +45,13 @@ class VersionCheckError(RuntimeError):
 # ── GitHub API 镜像列表 ──────────────────────────────────────────────
 
 _GITHUB_API_URLS = [
-    "https://api.github.com/repos/moesnow/March7thAssistant/releases/latest",
-    "https://github.kotori.top/https://api.github.com/repos/moesnow/March7thAssistant/releases/latest",
+    "https://api.github.com/repos/sparklelcm333/March7thAssistant/releases/latest",
+    "https://github.kotori.top/https://api.github.com/repos/sparklelcm333/March7thAssistant/releases/latest",
 ]
 
 _GITHUB_API_PRERELEASE_URLS = [
-    "https://api.github.com/repos/moesnow/March7thAssistant/releases",
-    "https://github.kotori.top/https://api.github.com/repos/moesnow/March7thAssistant/releases",
+    "https://api.github.com/repos/sparklelcm333/March7thAssistant/releases",
+    "https://github.kotori.top/https://api.github.com/repos/sparklelcm333/March7thAssistant/releases",
 ]
 
 
@@ -140,13 +142,11 @@ def _find_fastest_api(
     return urls[0]
 
 
-def pick_asset(assets: list[dict], full: bool = True) -> dict | None:
+def pick_asset(assets: list[dict], file_name: str) -> dict | None:
     """从 release assets 中挑选匹配的资源对象。"""
     for asset in assets:
         url = asset.get("browser_download_url", "")
-        if full and "full" in url:
-            return asset
-        if not full and "full" not in url:
+        if file_name in url:
             return asset
     return None
 
@@ -189,108 +189,11 @@ def detect_extension_from_url(url: str) -> str | None:
         return None
 
 
-# ── Mirror酱 API ─────────────────────────────────────────────────────
-
-_CDK_ERROR_MESSAGES = {
-    7001: "Mirror酱 CDK 已过期",
-    7002: "Mirror酱 CDK 错误",
-    7003: "Mirror酱 CDK 今日下载次数已达上限",
-    7004: "Mirror酱 CDK 类型和待下载的资源不匹配",
-    7005: "Mirror酱 CDK 已被封禁",
-}
-
-
-def _check_mirrorchyan(
-    cdk: str,
-    prerelease: bool,
-    current_version: str,
-    proxies: dict[str, str] | None = None,
-) -> UpdateInfo | None:
-    """通过 Mirror酱 API 检测更新。
-
-    返回 UpdateInfo 如果有新版本；返回 None 如果已是最新。
-    """
-    api_url = (
-        "https://mirrorchyan.com/api/resources/March7thAssistant/latest"
-        f"?current_version={current_version}&cdk={cdk}&user_agent=m7a_app"
-    )
-    if prerelease:
-        api_url += "&channel=beta"
-
-    masked_url = api_url.replace(f"cdk={cdk}", f"cdk=***" if cdk else f"cdk={cdk}")
-    log.debug(f"Mirror酱 API: {masked_url}")
-
-    try:
-        resp = requests.get(api_url, timeout=10, proxies=proxies)
-        data = resp.json()
-    except Exception as e:
-        raise VersionCheckError(f"{tr('Mirror酱 API 请求失败')}: {e}") from e
-
-    if resp.status_code != 200 or data.get("code") != 0:
-        code = data.get("code", resp.status_code)
-        msg = data.get("msg", "unknown error")
-        # CDK 相关错误优先使用预定义的本地化消息
-        if code in _CDK_ERROR_MESSAGES:
-            msg = tr(_CDK_ERROR_MESSAGES[code])
-        raise VersionCheckError(f"{tr('Mirror酱 API 请求失败')} (code={code}): {msg}")
-
-    version_name = data["data"]["version_name"]
-
-    if not is_update_available(version_name, current_version):
-        log.info(f"Mirror酱 确认已是最新版本: {current_version}")
-        return None
-
-    # 有新版本时才访问 url 字段（最新版本时 API 不返回该字段）
-    dl_url = data["data"]["url"]
-    sha256 = normalize_sha256(data["data"].get("sha256"))
-    release_note = data["data"].get("release_note", "")
-    file_name = f"March7thAssistant-{version_name}.zip"
-    log.info(f"Mirror酱 发现新版本: {version_name}")
-    return UpdateInfo(
-        source="MirrorChyan",
-        url=dl_url,
-        file_name=file_name,
-        version=version_name,
-        sha256=sha256,
-        release_note=release_note,
-    )
-
-
-def validate_mirrorchyan_cdk(
-    cdk: str,
-    proxies: dict[str, str] | None = None,
-) -> int | float:
-    """验证 Mirror酱 CDK 有效性，返回 cdk_expired_time 时间戳。"""
-    current_version = get_local_version()
-    api_url = (
-        "https://mirrorchyan.com/api/resources/March7thAssistant/latest"
-        f"?current_version={current_version}&cdk={cdk}&user_agent=m7a_app"
-    )
-    masked_url = api_url.replace(f"cdk={cdk}", f"cdk=***" if cdk else f"cdk={cdk}")
-    log.debug(f"Mirror酱 CDK 验证: {masked_url}")
-
-    try:
-        resp = requests.get(api_url, timeout=10, proxies=proxies)
-        data = resp.json()
-    except Exception as e:
-        raise VersionCheckError(f"{tr('Mirror酱 API 请求失败')}: {e}") from e
-
-    if resp.status_code != 200 or data.get("code") != 0:
-        code = data.get("code", resp.status_code)
-        msg = data.get("msg", "unknown error")
-        if code in _CDK_ERROR_MESSAGES:
-            msg = tr(_CDK_ERROR_MESSAGES[code])
-        raise VersionCheckError(f"{tr('Mirror酱 API 请求失败')} (code={code}): {msg}")
-
-    return data["data"]["cdk_expired_time"]
-
-
 # ── GitHub API ───────────────────────────────────────────────────────
 
 def _check_github(
     prerelease: bool,
     current_version: str,
-    full: bool = True,
     proxies: dict[str, str] | None = None,
 ) -> UpdateInfo | None:
     """通过 GitHub API 检测更新。
@@ -316,74 +219,55 @@ def _check_github(
         log.info(f"GitHub 确认已是最新版本: {current_version}")
         return None
 
-    asset = pick_asset(release.get("assets", []), full=full)
-    if not asset:
+    assets = release.get("assets", [])
+    full_asset = pick_asset(assets,'full')
+    patch_name = f"patch_from_{current_version}_to_{version}"
+    patch_asset = pick_asset(assets, patch_name)
+    if not full_asset:
         raise VersionCheckError(tr("没有找到合适的下载URL"))
-
-    download_url = asset.get("browser_download_url", "")
-    file_name = asset.get("name") or download_url.rsplit("/", 1)[-1]
-    sha256 = normalize_sha256(asset.get("digest") or asset.get("sha256"))
-    log.info(f"GitHub 发现新版本: {version}")
+    patch_url = patch_asset.get("browser_download_url", "") if patch_asset else ""
+    patch_sha256 = normalize_sha256(patch_asset.get("digest") or patch_asset.get("sha256")) if patch_asset else ""
+    full_url = full_asset.get("browser_download_url", "")
+    file_name = full_asset.get("name") or full_url.rsplit("/", 1)[-1]
+    sha256 = normalize_sha256(full_asset.get("digest") or full_asset.get("sha256"))
+    log.info(f"发现新版本: {version}")
     return UpdateInfo(
-        source="GitHub",
-        url=download_url,
+        url=full_url,
         file_name=file_name,
         version=version,
         sha256=sha256,
         release_note=release.get("body", ""),
         html_url=release.get("html_url", ""),
+        patch_url=patch_url,
+        patch_sha256=patch_sha256,
+        patch_name=patch_name,
     )
 
 
 # ── 统一入口 ─────────────────────────────────────────────────────────
 
 def check_for_update(
-    source: str = "GitHub",
-    cdk: str = "",
     prerelease: bool = False,
-    full: bool = True,
-    mirrorchyan_fallback: bool = True,
 ) -> UpdateInfo | None:
     """检测更新的统一入口。
-
-    根据 source 参数选择更新源。mirrorchyan_fallback 控制 Mirror酱 失败时是否回退到 GitHub。
-
     Args:
-        source: "GitHub" 或 "MirrorChyan"
-        cdk: Mirror酱 CDK 密钥
         prerelease: 是否检测公测版
-        full: 是否优先下载完整包
-        mirrorchyan_fallback: Mirror酱 失败时是否回退到 GitHub（默认 True）
 
     Returns:
         UpdateInfo 如果有新版本；None 如果已是最新。
 
     Raises:
-        VersionCheckError: 检测失败。mirrorchyan_fallback=False 时 Mirror酱 错误会直接抛出。
+        VersionCheckError: 检测失败。
     """
     current_version = get_local_version()
     request_proxies = get_update_download_requests_proxies()
     proxy_desc = get_update_requests_proxy_description()
-    log.debug(f"版本检测: source={source}, prerelease={prerelease}, "
-              f"current={current_version}, cdk={'***' if cdk else 'empty'}")
+    log.debug(f"版本检测: GitHub, prerelease={prerelease}, "
+              f"current={current_version}")
     if proxy_desc:
         log.info(f"更新检测使用代理: {proxy_desc}")
 
-    # 优先尝试 Mirror酱
-    if source == "MirrorChyan" and cdk:
-        try:
-            result = _check_mirrorchyan(cdk, prerelease, current_version, request_proxies)
-            if result is not None:
-                log.debug(f"Mirror酱 检测结果: {result}")
-                return result
-            return None  # Mirror酱 确认已是最新
-        except Exception as e:
-            if not mirrorchyan_fallback:
-                log.warning(f"Mirror酱 检测失败: {e}")
-                raise
-            log.warning(f"Mirror酱 检测失败，回退到 GitHub: {e}")
-
-    # GitHub（含 source == "GitHub" 或 Mirror酱 失败的回退）
-    result = _check_github(prerelease, current_version, full, request_proxies)
+    # GitHub
+    result = _check_github(prerelease, current_version, request_proxies)
     log.debug(f"GitHub 检测结果: {result}")
     return result
