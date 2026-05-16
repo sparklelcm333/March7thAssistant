@@ -18,18 +18,16 @@ from module.update.version_check import check_for_update
 def start():
     log.hr(tr("开始更新三月七小助手"), 0)
     try:
-        source = getattr(cfg, "update_source", "GitHub")
-        cdk = getattr(cfg, "mirrorchyan_cdk", "")
         prerelease = bool(getattr(cfg, "update_prerelease_enable", False))
-        log.debug(f"更新配置: source={source}, cdk={'***' if cdk else 'empty'}, prerelease={prerelease}")
+        log.debug(f"更新配置: prerelease={prerelease}")
 
-        info = check_for_update(source, cdk, prerelease)
+        info = check_for_update(prerelease)
         if info is None:
             log.info(tr("当前已是最新版本"))
             log.hr(tr("完成"), 2)
             return
 
-        log.info(f"{tr('发现新版本')}: {info.version} ({info.source})")
+        log.info(f"{tr('发现新版本')}: {info.version}")
         log.debug(f"下载URL: {info.url[:80]}..., 文件名: {info.file_name}")
 
         # 启动更新程序

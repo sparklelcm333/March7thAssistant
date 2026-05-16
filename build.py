@@ -31,10 +31,7 @@ def generate_changelog(version: str, output_file: Path) -> None:
     log_content = get_changelog(version)
 
     # 生成最终内容
-    final_output = f"""{log_content}
-
-[已有 Mirror酱 CDK？前往 Mirror酱 高速下载](https://mirrorchyan.com/zh/download?rid=March7thAssistant&os=&arch=&channel=stable&source=m7a-release)"""
-
+    final_output = log_content
     output_file.write_text(final_output, encoding="utf-8")
     log.info(f"[✓] 日志内容已输出到 {output_file}")
 

@@ -12,8 +12,6 @@ def start():
     try:
         log.hr("开始检测更新", 0)
         info = check_for_update(
-            source=getattr(cfg, "update_source", "GitHub"),
-            cdk=getattr(cfg, "mirrorchyan_cdk", ""),
             prerelease=bool(getattr(cfg, "update_prerelease_enable", False)),
         )
         if info is not None:

@@ -243,14 +243,7 @@ class MessageBoxHtmlUpdate(MessageBox):
             tr("直接从 GitHub 下载并更新")
         )
 
-        self.mirrorchyanUpdateCard = PrimaryPushSettingCard(
-            tr('立即更新'),
-            FIF.CLOUD,
-            tr('Mirror酱 服务 ⚡'),
-            tr("Mirror酱 用户可以通过 CDK 高速更新（支持任意版本间增量更新）")
-        )
         self.textLayout.addWidget(self.githubUpdateCard, 0, Qt.AlignmentFlag.AlignTop)
-        self.textLayout.addWidget(self.mirrorchyanUpdateCard, 0, Qt.AlignmentFlag.AlignTop)
 
         # self.githubUpdateCard.clicked.connect(self._githubupdate())
 

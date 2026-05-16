@@ -121,6 +121,7 @@ class UpdateEngine:
         self.cover_folder_path = os.path.abspath("./")
         self.exe_path = os.path.abspath("./assets/binary/7za.exe")
         self.aria2_path = os.path.abspath("./assets/binary/aria2c.exe")
+        self.hpatchz_path = os.path.abspath("./assets/binary/hpatchz.exe")
 
         # 更新包信息
         self.download_url: str | None = None
@@ -161,9 +162,12 @@ class UpdateEngine:
         )
         self._log("debug", f"设置本地更新包: {file_name}")
 
-    def set_update_info(self, info: UpdateInfo):
+    def set_update_info(self, info: UpdateInfo ,is_patch: bool = True):
         """从 UpdateInfo（check_for_update 的结果）设置更新包。"""
-        self.set_package(info.url, info.file_name, info.sha256)
+        if is_patch and info.patch_url:
+            self.set_package(info.patch_url,info.patch_name, info.patch_sha256)
+        else:
+            self.set_package(info.url, info.file_name, info.sha256)
 
     # ── 版本与更新检测 ───────────────────────────────────────────────
 
@@ -177,10 +181,7 @@ class UpdateEngine:
 
     def check_and_set_update(
         self,
-        source: str = "GitHub",
-        cdk: str = "",
         prerelease: bool = False,
-        full: bool = True,
     ) -> str | None:
         """检测更新并自动设置更新包信息。
 
@@ -188,7 +189,7 @@ class UpdateEngine:
         """
         self._log("info", tr("开始检测更新"))
         try:
-            info = check_for_update(source, cdk, prerelease, full)
+            info = check_for_update(prerelease)
         except Exception as e:
             self._log("error", f"{tr('检测更新失败')}: {e}")
             raise UpdateError(tr("检测更新失败")) from e
@@ -198,7 +199,7 @@ class UpdateEngine:
             return None
 
         self.set_update_info(info)
-        self._log("info", f"{tr('发现新版本')}: {info.version} ({info.source})")
+        self._log("info", f"{tr('发现新版本')}: {info.version}")
         return info.url
 
     # ── 进度与日志 ───────────────────────────────────────────────────
@@ -430,6 +431,28 @@ class UpdateEngine:
 
         self._cleanup_self_backup()
         self._emit_progress(UpdateStage.DONE, tr("更新完成"), 1, 1)
+
+    # ── 尝试增量更新 ─────────────────────────────────────────────────────
+
+    def try_incremental_update(self, wait_pid: int | None = None) -> bool:
+        '''尝试增量更新'''
+        if not self.download_url:
+            return False
+
+        self._log("info", "尝试增量更新...")
+        try:
+            self.download_with_progress()
+            self.wait_for_process_exit(wait_pid)
+            self.terminate_processes()
+            cmd = [self.hpatchz_path, "-f", self.cover_folder_path, self.download_file_path, self.cover_folder_path]
+            subprocess.run(cmd, check=True)
+            self._log("info", "增量补丁应用成功")
+            self.cleanup()
+            self.launch_application()
+            return True
+        except Exception as e:
+            self._log("warning", f"增量更新失败: {e}")
+            return False
 
     # ── 流程编排 ─────────────────────────────────────────────────────
 

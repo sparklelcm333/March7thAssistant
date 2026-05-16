@@ -398,7 +398,6 @@ class ExpandableComboBoxSettingCardUpdateSource(ExpandSettingCard):
         """
         super().__init__(icon, title, content, parent)
         self.configname = configname
-        self.secondaryConfigname = secondary_configname
         self.update_callback = update_callback
 
         # Import config here to avoid circular import
@@ -408,11 +407,6 @@ class ExpandableComboBoxSettingCardUpdateSource(ExpandSettingCard):
         self.checkUpdate = checkUpdate
 
         self.secondaryComboBox = None
-        if secondary_configname and secondary_texts:
-            self.secondaryComboBox = ComboBox(self)
-            self.secondaryComboBox.setMinimumWidth(110)
-            self.card.addWidget(self.secondaryComboBox)
-            self._initComboBox(self.secondaryComboBox, secondary_configname, secondary_texts)
 
         self.comboBox = ComboBox(self)
         self.comboBox.setMinimumWidth(110)
@@ -421,8 +415,6 @@ class ExpandableComboBoxSettingCardUpdateSource(ExpandSettingCard):
 
         # Connect signals
         self.comboBox.currentIndexChanged.connect(self.__onComboBoxChanged)
-        if self.secondaryComboBox is not None:
-            self.secondaryComboBox.currentIndexChanged.connect(self.__onSecondaryComboBoxChanged)
 
     def _initComboBox(self, combo_box: ComboBox, configname: str, texts: dict | None):
         if not texts:
