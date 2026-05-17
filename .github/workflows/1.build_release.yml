@@ -133,7 +133,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
 
-      # 生成增量补丁
+      # 生成针对上个版本的增量补丁
       - name: Generate incremental patch
         if: startsWith(github.ref, 'refs/tags/') && steps.prev_tag.outputs.prev_tag != ''
         id: gen_patch
@@ -143,6 +143,44 @@ jobs:
           $patchName = "patch_from_${{ steps.prev_tag.outputs.prev_tag }}_to_${{ github.ref_name }}"
           & $env:HDIFFZ_PATH -m-6 -SD -c-zstd-21-24 -d $oldDir $currDir $patchName
           echo "patch_name=$patchName" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      # 获取上上个版本 tag
+      - name: Get previous previous tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: prev_prev_tag
+        run: |
+          $prevPrev = git tag --sort=-v:refname | Select-Object -Skip 2 -First 1
+          if (-not $prevPrev) {
+            Write-Warning "未找到上上个版本 tag，将跳过第二个增量补丁生成"
+          }
+          echo "prev_prev_tag=$prevPrev" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      # 下载并解压上上个版本全量包
+      - name: Download and extract previous previous version
+        if: startsWith(github.ref, 'refs/tags/') && steps.prev_prev_tag.outputs.prev_prev_tag != ''
+        run: |
+          $prevPrevTag = "${{ steps.prev_prev_tag.outputs.prev_prev_tag }}"
+          gh release download $prevPrevTag --repo ${{ github.repository }} --pattern "*full.7z" --dir ./old_build_prev
+          $full7z = Get-ChildItem -Path ./old_build_prev -Filter "*full.7z" | Select-Object -First 1
+          if ($full7z) {
+            .\assets\binary\7za.exe x "$full7z" -o"./old_version_prev" -y
+          }
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+
+      # 生成针对上个版本的增量补丁
+      - name: Generate second incremental patch
+        if: startsWith(github.ref, 'refs/tags/') && steps.prev_prev_tag.outputs.prev_prev_tag != ''
+        id: gen_patch2
+        run: |
+          $currDir = ".\dist\March7thAssistant_full"
+          $oldDir = ".\old_version_prev\March7thAssistant_full"
+          $patchName = "patch_from_${{ steps.prev_prev_tag.outputs.prev_prev_tag }}_to_${{ github.ref_name }}"
+          & $env:HDIFFZ_PATH -m-6 -SD -c-zstd-21-24 -d $oldDir $currDir $patchName
+          echo "patch_name2=$patchName" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
       # 创建完整的压缩包
@@ -160,6 +198,10 @@ jobs:
           $patchName = "${{ steps.gen_patch.outputs.patch_name }}"
           if ($patchName) {
             $files += $patchName
+          }
+          $patchName2 = "${{ steps.gen_patch2.outputs.patch_name2 }}"
+          if ($patchName2) {
+            $files += $patchName2
           }
           "release_files<<EOF" >> $env:GITHUB_OUTPUT
           $files -join "`n" >> $env:GITHUB_OUTPUT
