@@ -146,11 +146,9 @@ jobs:
         shell: pwsh
 
       # 创建完整的压缩包
-      - name: Create full zip archive
+      - name: Create full 7z archive
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          # Compress-Archive -Path .\dist\March7thAssistant_full\ -DestinationPath .\dist\March7thAssistant_full.zip -Force
-          .\assets\binary\7za.exe a -tzip .\dist\March7thAssistant_full.zip .\dist\March7thAssistant_full\
           .\assets\binary\7za.exe a -t7z -m0=lzma2 -ms=on -mx=9 -md=128m .\dist\March7thAssistant_full.7z .\dist\March7thAssistant_full\
 
       # 准备发布文件列表
@@ -158,8 +156,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         id: release_files
         run: |
-          $files = @("./dist/March7thAssistant_full.zip", "./dist/March7thAssistant_full.7z")
-          $patchName = "${{ steps.gen_patch.outputs.patch_name }}"   # 改为 gen_patch
+          $files = @("./dist/March7thAssistant_full.7z")
+          $patchName = "${{ steps.gen_patch.outputs.patch_name }}"
           if ($patchName) {
             $files += $patchName
           }
