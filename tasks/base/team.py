@@ -8,7 +8,7 @@ import re
 class Team:
     @staticmethod
     def change_to(team):
-        if not re.match(r"^[01]?[0-9]$", str(team)):
+        if not re.fullmatch(r"[01]?[0-9]", str(team)):
             log.error(f"队伍编号 {team} 格式错误，应为数字")
             return False
 
