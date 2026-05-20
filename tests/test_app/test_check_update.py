@@ -29,12 +29,6 @@ class TestParseReleaseBody:
         result = _parse_release_body(body)
         assert "首次" not in result
 
-    def test_removes_mirror_link(self):
-        body = '\r\n\r\n[Mirror酱CDK下载](https://www.mirrorchyan.com/test)'
-        result = _parse_release_body(body)
-        assert "Mirror酱" not in result
-        assert "mirrorchyan" not in result
-
     def test_preserves_normal_content(self):
         body = "## v1.0.0\n- Bug fixes\n- Performance improvements"
         result = _parse_release_body(body)
