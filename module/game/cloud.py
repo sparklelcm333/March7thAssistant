@@ -10,7 +10,7 @@ import time
 import io
 import ctypes
 from selenium import webdriver
-from selenium.common.exceptions import TimeoutException, SessionNotCreatedException
+from selenium.common.exceptions import TimeoutException, SessionNotCreatedException, StaleElementReferenceException
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.edge.options import Options as EdgeOptions
@@ -456,6 +456,9 @@ class CloudGameController(GameControllerBase):
             paid = int(paid_els[0].text.strip()) if paid_els else None
             free = int(free_els[0].text.strip()) if free_els else None
             return paid, free
+        except StaleElementReferenceException:
+            self.log_debug("获取剩余时长失败: 页面元素已更新，将重试")
+            return None, None
         except Exception as e:
             self.log_debug(f"获取剩余时长失败: {e}")
             return None, None
