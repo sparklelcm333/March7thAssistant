@@ -444,23 +444,21 @@ class UpdateEngine:
             self.download_with_progress()
             self.wait_for_process_exit(wait_pid)
             self.terminate_processes()
-            key_files = [
-                (None, os.path.join(self.cover_folder_path, "March7th Assistant.exe")),
-                (None, os.path.join(self.cover_folder_path, "March7th Launcher.exe")),
-            ]
-            locked = self._check_target_files_locked(key_files)
-            if locked:
-                self._log("error", f"关键文件被占用，无法增量更新: {locked}")
+
+            import tempfile
+            temp_new_dir = tempfile.mkdtemp(prefix="m7a_patch_", dir=self.temp_path)
+            cmd = [self.hpatchz_path, "-f", self.cover_folder_path, self.download_file_path, temp_new_dir]
+            if subprocess.run(cmd).returncode != 0:
+                shutil.rmtree(temp_new_dir, ignore_errors=True)
                 return False
-            cmd = [self.hpatchz_path, "-f", self.cover_folder_path, self.download_file_path, self.cover_folder_path]
-            result = subprocess.run(cmd, check=False)
-            if result.returncode != 0:
-                self._log("error", f"hpatchz 失败，退出码: {result.returncode}")
-                return False
-            self._log("info", "增量补丁应用成功")
+
+            self.extract_folder_path = temp_new_dir
+            self.cover_folder()
             self.cleanup()
+            self._cleanup_self_backup()
             self.launch_application()
             return True
+
         except Exception as e:
             self._log("warning", f"增量更新失败: {e}")
             return False
