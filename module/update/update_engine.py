@@ -444,8 +444,19 @@ class UpdateEngine:
             self.download_with_progress()
             self.wait_for_process_exit(wait_pid)
             self.terminate_processes()
+            key_files = [
+                (None, os.path.join(self.cover_folder_path, "March7th Assistant.exe")),
+                (None, os.path.join(self.cover_folder_path, "March7th Launcher.exe")),
+            ]
+            locked = self._check_target_files_locked(key_files)
+            if locked:
+                self._log("error", f"关键文件被占用，无法增量更新: {locked}")
+                return False
             cmd = [self.hpatchz_path, "-f", self.cover_folder_path, self.download_file_path, self.cover_folder_path]
-            subprocess.run(cmd, check=True)
+            result = subprocess.run(cmd, check=False)
+            if result.returncode != 0:
+                self._log("error", f"hpatchz 失败，退出码: {result.returncode}")
+                return False
             self._log("info", "增量补丁应用成功")
             self.cleanup()
             self.launch_application()
