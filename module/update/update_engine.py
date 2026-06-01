@@ -205,7 +205,7 @@ class UpdateEngine:
 
         self.set_update_info(info)
         self._log("info", f"{tr('发现新版本')}: {info.version} ({info.source})")
-        return info.url
+        return self.download_url
 
     # ── 进度与日志 ───────────────────────────────────────────────────
 
@@ -451,12 +451,15 @@ class UpdateEngine:
             self.terminate_processes()
 
             if not self._release_self_lock():
+                self._restore_self_lock()
                 return False
 
             cmd = [self.hpatchz_path, "-f", self.cover_folder_path, self.download_file_path, self.cover_folder_path]
-            result = subprocess.run(cmd, check=False)
+            result = subprocess.run(cmd, check=False, timeout=300)
             if result.returncode != 0:
                 self._log("error", f"hpatchz 失败，退出码: {result.returncode}")
+                os.remove(self.download_file_path)
+                self._restore_self_lock()
                 return False
 
             self._log("info", "增量补丁应用成功")
@@ -465,6 +468,7 @@ class UpdateEngine:
             return True
         except Exception as e:
             self._log("warning", f"增量更新失败: {e}")
+            self._restore_self_lock()
             return False
 
     def _release_self_lock(self) -> bool:
@@ -489,18 +493,29 @@ class UpdateEngine:
         self.self_backup_path = backup
         return True
 
+    def _restore_self_lock(self):
+        """撤销 _release_self_lock：删副本，将 .old 重命名回原位。"""
+        self_path = sys.argv[0]
+        root, ext = os.path.splitext(self_path)
+        os.remove(self_path)
+        os.rename(f"{root}.old{ext}", self_path)
+        self.self_backup_path = None
+
     def try_apply_patch(self, patch_file_path: str) -> bool:
         """对已下载的补丁文件执行 hpatchz。
         调用方负责：等主程序退出、杀进程、cleanup + launch。
         返回 True 表示补丁应用成功。"""
         self.download_file_path = patch_file_path
         if not self._release_self_lock():
+            self._restore_self_lock()
             return False
         cmd = [self.hpatchz_path, "-f", self.cover_folder_path,
                patch_file_path, self.cover_folder_path]
-        result = subprocess.run(cmd, check=False)
+        result = subprocess.run(cmd, check=False, timeout=300)
         if result.returncode != 0:
             self._log("error", f"hpatchz 失败，退出码: {result.returncode}")
+            os.remove(self.download_file_path)
+            self._restore_self_lock()
             return False
         self._log("info", "补丁应用成功")
         return True

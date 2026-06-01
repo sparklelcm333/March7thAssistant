@@ -86,11 +86,11 @@ class UpdatePrepareWorker(QThread):
             # 有补丁优先下载补丁（只下载不解压，补丁不是归档文件）
             if self.patch_url and self.patch_name:
                 engine.set_package(self.patch_url, self.patch_name, self.patch_sha256)
-                self._patch_file_path = engine.download_file_path
                 if self._cancel_requested:
                     self.cancelled.emit()
                     return
                 engine.download_with_progress()
+                self._patch_file_path = engine.download_file_path
             elif self.download_url and self.file_name:
                 engine.set_package(self.download_url, self.file_name, self.sha256)
                 if not engine.prepare_update():

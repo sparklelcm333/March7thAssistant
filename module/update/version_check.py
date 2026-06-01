@@ -46,13 +46,13 @@ class VersionCheckError(RuntimeError):
 # ── GitHub API 镜像列表 ──────────────────────────────────────────────
 
 _GITHUB_API_URLS = [
-    "https://api.github.com/repos/sparklelcm333/March7thAssistant/releases/latest",
-    "https://github.kotori.top/https://api.github.com/repos/sparklelcm333/March7thAssistant/releases/latest",
+    "https://api.github.com/repos/moesnow/March7thAssistant/releases/latest",
+    "https://github.kotori.top/https://api.github.com/repos/moesnow/March7thAssistant/releases/latest",
 ]
 
 _GITHUB_API_PRERELEASE_URLS = [
-    "https://api.github.com/repos/sparklelcm333/March7thAssistant/releases",
-    "https://github.kotori.top/https://api.github.com/repos/sparklelcm333/March7thAssistant/releases",
+    "https://api.github.com/repos/moesnow/March7thAssistant/releases",
+    "https://github.kotori.top/https://api.github.com/repos/moesnow/March7thAssistant/releases",
 ]
 
 
@@ -367,7 +367,6 @@ def check_for_update(
         source: "GitHub" 或 "MirrorChyan"
         cdk: Mirror酱 CDK 密钥
         prerelease: 是否检测公测版
-        full: 是否优先下载完整包
         mirrorchyan_fallback: Mirror酱 失败时是否回退到 GitHub（默认 True）
 
     Returns:
