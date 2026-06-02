@@ -337,16 +337,10 @@ class UpdaterWindow(MessageBoxBase):
         if self.worker is not None and self.worker.isRunning():
             return
 
-        # 断开旧 worker 的信号连接，防止重试时积压
         if self.worker is not None:
             try:
-                self.worker.progressChanged.disconnect()
-                self.worker.logWritten.disconnect()
-                self.worker.prepared.disconnect()
-                self.worker.cancelled.disconnect()
-                self.worker.failed.disconnect()
-                self.worker.noUpdate.disconnect()
-            except (TypeError, RuntimeError):
+                self.worker.deleteLater()
+            except Exception:
                 pass
 
         self._cancel_requested = False
@@ -477,7 +471,7 @@ class UpdaterWindow(MessageBoxBase):
 
         try:
             self._launch_helper(
-                self._prepared_file_name,
+                self.file_name or self._prepared_file_name,
                 self._prepared_extract_folder_path or "",
                 self._prepared_patch_file_path,
                 self.download_url or "",
