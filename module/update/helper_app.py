@@ -405,10 +405,9 @@ class NativeUpdaterWindow:
                         engine.launch_application()
                     else:
                         self._log("info", "补丁应用失败，回退到完整更新")
-                        if self.options.download_url:
-                            engine.set_package(self.options.download_url,
-                                               self.options.file_name or "",
-                                               self.options.sha256 or "")
+                        engine.set_package(self.options.download_url,
+                                           self.options.file_name or "",
+                                           self.options.sha256 or "")
                         if not engine.run_full_update(wait_pid=self.options.wait_pid):
                             self._set_result("no-update", tr("当前已是最新版本"))
                             return
