@@ -1,5 +1,8 @@
 # 更新日志
 
+## v2026.5.28
+- test
+
 ## v2026.5.27
 - 支持开拓者·欢愉 [#1085](https://github.com/moesnow/March7thAssistant/pull/1085) @shing-yu
 - 支持位面饰品提取自动切换队伍 [#938](https://github.com/moesnow/March7thAssistant/pull/938) @alex3236
