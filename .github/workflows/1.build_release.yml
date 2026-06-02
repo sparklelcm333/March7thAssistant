@@ -236,16 +236,15 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'beta') }}
           make_latest: true
 
-      # 保存当前构建供后续版本生成补丁使用
-      - name: Save current build to cache
+      # 将当前构建放入 prev_version 目录以供缓存——未来发布将以此为旧版本生成补丁
+      - name: Stage build for caching
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           Remove-Item -Path "./prev_version" -Recurse -Force -ErrorAction SilentlyContinue
           Copy-Item -Path "./dist/March7thAssistant_full" -Destination "./prev_version/March7thAssistant_full" -Recurse -Force
         shell: pwsh
 
-      # 保存构建缓存供后续版本使用
-      - name: Upload current build to cache
+      - name: Cache build for future patch generation
         uses: actions/cache/save@v5
         if: startsWith(github.ref, 'refs/tags/')
         with:
